@@ -1,35 +1,56 @@
-"""Flask routes for the backend application."""
+import json
+from flask import Flask, request, jsonify, render_template
 
-from __future__ import annotations
+from services.bash import Bash
+from messaging.messages import ConversationMemory
+from llm import LLM
 
-from flask import Blueprint, Flask, jsonify, request
+def register_routes(app: Flask, bash_service: Bash, llm_service: LLM, messages: ConversationMemory):
 
-from services.bash_service import Bash
+    @app.route("/")
+    def index():
+        return render_template("index.html")
 
+    @app.route("/api/chat", methods=["POST"])
+    def chat():
+        user_message = request.json.get("message")
+        if not user_message:
+            return jsonify({"error": "No message provided"}), 400
 
-def register_routes(app: Flask, bash_service: BashService) -> None:
-    """Register all API routes for the backend application."""
+        # Add user message to conversation memory
+        messages.add_user_message(user_message)
 
-    router = Blueprint("commands", __name__, url_prefix="/commands")
+        # Query the LLM
+        response_text, tool_calls = llm_service.query(messages, [bash_service.to_json_schema()])
 
-    @router.route("/execute", methods=["POST"])
-    def execute_command() -> tuple[dict, int] | tuple[dict, int, dict]:
-        payload_data = request.get_json(silent=True) or {}
+        if tool_calls:
+            for tc in tool_calls:
+                function_name = tc.name
+                function_args = tc.args
 
-        try:
-            payload = CommandRequest(**payload_data)
-        except ValidationError as exc:
-            return jsonify({"detail": exc.errors()}), 422
+                if function_name == "exec_bash_command" and "cmd" in function_args:
+                    command = function_args["cmd"]
+                    # In a web context, you might want to confirm execution with the user
+                    # before running it. For a barebones version, we can auto-execute.
+                    tool_call_result = bash_service.exec_bash_command(command)
+                    messages.add_tool_message(tool_call_result, tc.id)
+                    # If there's an error, send it back to the user
+                    if tool_call_result.get("stderr"):
+                        return jsonify({"response": tool_call_result["stderr"], "is_tool_output": True})
+                    # Otherwise, send the stdout
+                    else:
+                        return jsonify({"response": tool_call_result["stdout"], "is_tool_output": True})
+                else:
+                    return jsonify({"error": "Incorrect tool or function argument"}), 400
+        else:
+            # Add assistant response to conversation memory
+            messages.add_assistant_message(response_text)
+            return jsonify({"response": response_text})
 
-        response: CommandResponse = bash_service.execute(payload)
-        if response.error:
-            return jsonify({"detail": response.error}), 400
+    @app.errorhandler(404)
+    def not_found(error):
+        return jsonify({"error": "Not found"}), 404
 
-        return jsonify(response.model_dump()), 200
-
-    @router.route("/state", methods=["GET"])
-    def get_state() -> tuple[dict, int] | tuple[dict, int, dict]:
-        response: CommandResponse = bash_service.state()
-        return jsonify(response.model_dump()), 200
-
-    app.register_blueprint(router)
+    @app.errorhandler(500)
+    def internal_error(error):
+        return jsonify({"error": "Internal server error"}), 500

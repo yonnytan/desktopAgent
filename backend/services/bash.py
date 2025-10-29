@@ -103,10 +103,14 @@ class Bash:
 
     def _format_du_output(self, output: str) -> str:
         lines = output.strip().split('\n')
-        formatted_lines = []
+        formatted_lines = ["Disk Usage:"]
         for line in lines:
-            parts = line.split('\t')
-            if len(parts) == 2:
-                size, name = parts[0], parts[1]
+            # Regex to match lines like "4.0K\t./file" or "80\t."
+            match = re.match(r"^(\d+\.?\d*[KMGT]?)\t(.*)$", line)
+            if match:
+                size, name = match.groups()
                 formatted_lines.append(f"- {name}: {size}")
+            else:
+                # Fallback for lines that don't match the expected pattern, e.g., errors or non-du output
+                formatted_lines.append(f"- {line}")
         return "\n".join(formatted_lines)

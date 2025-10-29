@@ -31,7 +31,7 @@ class Config:
     #          By running this code you assume all responsibility for
     #          unintended consequences of command execution.
     allowed_commands: list = field(default_factory=lambda: [
-        "cd", "cp", "ls", "cat", "find", "touch", "echo", "grep", "pwd", "mkdir", "wget", "sort", "head", "tail", "du",
+        "cd", "cp", "ls", "cat", "find", "touch", "echo", "grep","wc", "pwd", "mkdir", "wget", "sort", "head", "tail", "du",
     ])
 
     @property
@@ -47,9 +47,14 @@ them. If they ask question that are not relevant to bash or computer use, declin
 When a command is executed, you will be given the output from that command and any errors. Based on
 that, either take further actions or yield control to the user.
 
+Specifically for the `du` command, if you execute it and receive an output, present the output directly to the user.
+Do not re-ask if they want it sorted or filtered if the command itself already includes sorting/filtering options like `sort` or `head`.
+
 The bash interpreter's output and current working directory will be given to you every time a
 command is executed. Take that into account for the next conversation.
 If there was an error during execution, tell the user what that error was exactly.
+Do not respond with phrases like "I seem to be stuck in a loop" or "To ensure I'm providing accurate information, I'll reset the conversation and try again."
+These meta-responses are handled by the agent, and you should focus on the task at hand or yielding control.
 
 You are only allowed to execute the following commands. Break complex tasks into shorter commands from this list:
 

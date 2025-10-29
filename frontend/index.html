@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Bash Assistant</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background-color: #f4f4f4;
+        }
+        .chat-container {
+            flex-grow: 1;
+            padding: 20px;
+            overflow-y: auto;
+            border-bottom: 1px solid #ddd;
+        }
+        .message {
+            margin-bottom: 10px;
+            padding: 8px 12px;
+            border-radius: 15px;
+            max-width: 70%;
+        }
+        .user-message {
+            background-color: #dcf8c6;
+            align-self: flex-end;
+            margin-left: auto;
+        }
+        .assistant-message {
+            background-color: #e0e0e0;
+            align-self: flex-start;
+        }
+        .tool-output {
+            background-color: #fff3cd; /* Light yellow for tool output */
+            border-left: 3px solid #ffc107;
+            padding: 10px;
+            font-family: 'Courier New', Courier, monospace;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .input-container {
+            display: flex;
+            padding: 10px;
+            background-color: #fff;
+            border-top: 1px solid #ddd;
+        }
+        .input-container input {
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-right: 10px;
+        }
+        .input-container button {
+            padding: 10px 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .input-container button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container" id="chat-container">
+        <!-- Messages will be appended here -->
+    </div>
+    <div class="input-container">
+        <input type="text" id="user-input" placeholder="Type your message...">
+        <button id="send-button">Send</button>
+    </div>
+
+    <script>
+        const chatContainer = document.getElementById('chat-container');
+        const userInput = document.getElementById('user-input');
+        const sendButton = document.getElementById('send-button');
+
+        function appendMessage(sender, text, isToolOutput = false) {
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message');
+
+            if (sender === 'user') {
+                messageElement.classList.add('user-message');
+                messageElement.textContent = text;
+            } else if (sender === 'assistant') {
+                if (isToolOutput) {
+                    messageElement.classList.add('tool-output');
+                    messageElement.textContent = text;
+                } else {
+                    messageElement.classList.add('assistant-message');
+                    messageElement.textContent = text;
+                }
+            }
+            chatContainer.appendChild(messageElement);
+            chatContainer.scrollTop = chatContainer.scrollHeight; // Scroll to bottom
+        }
+
+        async function sendMessage() {
+            const message = userInput.value.trim();
+            if (message === '') return;
+
+            appendMessage('user', message);
+            userInput.value = '';
+
+            try {
+                const response = await fetch('/api/chat', { // Use /api/chat as specified
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ message: message })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    appendMessage('assistant', `Error: ${errorData.error || response.statusText}`);
+                    return;
+                }
+
+                const data = await response.json();
+                appendMessage('assistant', data.response, data.is_tool_output);
+
+            } catch (error) {
+                console.error('Error sending message:', error);
+                appendMessage('assistant', 'An error occurred while sending your message.');
+            }
+        }
+
+        sendButton.addEventListener('click', sendMessage);
+        userInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        // Initial welcome message from the assistant
+        appendMessage('assistant', 'Hello! I am your AI Bash Assistant. How can I help you today?');
+    </script>
+</body>
+</html>
